@@ -1,11 +1,11 @@
-# Ultima actualizacion: 28/03/2019.
+# Ultima actualizacion: 28/04/2019.
 # Autor: Tomas Capretto.
 
 #-------------------------------------------------- Descripción -------------------------------------------------- #
-# Este programa contiene una función utilizada para extraer una muestra por conglomerados estratificada,           #
-# en 3 etapas, donde la ultima unidad de seleccion son elementos.                                                  #
-# El resultado es una lista que contiene 3 dataframes, cada uno se corresponde con la muestra de cada              #
-# etapa de muestreo.                                                                                               #
+# Este programa contiene las funciones necesarias para realizar las simulaciones.                                  #
+# También incluye los coeficientes para simular perdidos en MAR.                                                   #
+# En la medida de lo posible, se buscó dar una descripción del funcionamiento de las funciones y sus argumentos.   #
+#                                                                                                                  #
 #----------------------------------------------------------------------------------------------------------------- #
 
 ## -------------------------------------------- Función para seleccionar muestra.
@@ -110,13 +110,6 @@ adjust_noresp <- function(object, estimate_var) {
 # stopCluster(cl); e <- Sys.time(); e -s
   return(object)
 }
-
-
-# Otra alternativa para el loop paralelo. Testearlo en la PC de Blas. (future_apply)
-#
-# apply(X = object$repweights$base, 2, function (x) sub_adjust_noresp(weights = x,
-#                                                                     group = object$variables$strata,
-#                                                                     resp = object$I))
 
 ## -------------------------------------------- Funcion auxiliar para el ajuste por no respuesta.
 # weights: vector con los pesos a ajustar
@@ -244,8 +237,6 @@ combine <- function(...) {
   mapply('cbind', ..., SIMPLIFY=FALSE)
 }
 
-
-
 ## -------------------------------------------- Función que realiza estimaciones puntuales y de variancia.
 estimate <- function(object, estimate_var){
   
@@ -257,8 +248,8 @@ estimate <- function(object, estimate_var){
   y_means <- sapply(object$pweights, estimate_mean, y)
   
   if (estimate_var){
-    # Para cada conjunto de pesos de replicación calcula el estimador de Hajek
-    # en cada vector de pesos. Luego calcula la variancia bootstrap utilizando estas medias.
+    # Para cada conjunto de pesos de replicación calcula el estimador de Hajek en cada vector de pesos.
+    # Luego calcula la variancia bootstrap utilizando estas medias.
     
     y_vars  <- apply(sapply(object$repweights, function (x) apply(x, 2, estimate_mean, y)), 2, var)
     return(list("medias" = y_means, "variancias" = y_vars))
@@ -286,128 +277,3 @@ NMAR_list <- list("0.80" = -1.48,
                   "0.70" = -0.87,
                   "0.65" = -0.61,
                   "0.60" = -0.37)
-
-
-
-
-
-
-
-
-
-#------------------------------------ Deprecated ------------------------------------------- ###
-
-## -------------------------------------------- Función para obtener pesos bootstrap, ajustados y no ajustados por NR.
-
-# nh = cantidad de UPM del estrato h en la muestra.
-# mh = cantidad de UPM del estrato h a seleccionar con reposicion (i.e. mh=nh-1)
-# thi = cantidad de veces que sale UPM i del estrato h en la muestra con reposicion.
-
-# boot_adj <- function(UPM_df,      # data.frame con la muestra de UPMs a utilizar.
-#                      UTM_df,      # data.frame con la muestra de elementos a utilizar.
-#                      UPM_n,       # vector que indica cantidad de UPM por estrato en la muestra.
-#                      boot_mh,     # vector que indica cantidad de UPM por estrato en cada muestra bootstrap.
-#                      n_boot       # cantidad de replicas bootstrap.
-# ){  
-#   # Dataframe utilizado para asistir la obtencion de pesos bootstrap y bootstrap ajustados por NR.
-#   input_data <- UTM_df[c("strata", "strata_boot", "UPM_boot", "wt", "n_personas" ,"I")]
-#   
-#   # Obtiene pesos bootstrap y pesos bootstrap ajustados por NR, utilizando primero 
-#   # "Adj.Class" como clase de ajuste de pesos.
-#   boot_wt <- foreach(i=1:n_boot, .combine=cbind, .packages=c('sampling','dplyr', 'foreach')) %dopar% {
-#     
-#     oldnames = c("boot_wt","adj1_boot_wt", "adj2_boot_wt")
-#     newnames = c(paste0("boot_wt_", i), paste0("adj1_boot_wt_", i), paste0("adj2_boot_wt_", i))
-#     
-#     boot_fact <- cbind(UPM_df %>%
-#                          arrange(strata_boot, UPM_boot) %>%
-#                          select(strata_boot, UPM_boot),
-#                        thi = unlist(mapply(srswr, boot_mh, UPM_n))) %>% 
-#       group_by(strata_boot) %>%
-#       mutate(num = n(), den = sum(thi)) %>%
-#       ungroup() %>%
-#       mutate(adj_factor = thi*(num/den)) %>%
-#       select(strata_boot, UPM_boot, adj_factor)
-#     
-#     # Ajuste NR por clases dada por cantidad de personas en el hogar. Para ver MAR.
-#     input_data %>%
-#       left_join(boot_fact, c("strata_boot", "UPM_boot"))%>%
-#       mutate(boot_wt = wt*adj_factor) %>%
-#       group_by(n_personas) %>% 
-#       mutate(tot_boot_wt = sum(boot_wt)) %>%
-#       filter(I == 1) %>%
-#       mutate(adj_nr       = tot_boot_wt/sum(boot_wt),
-#              adj1_boot_wt = adj_nr*boot_wt) %>%
-#       ungroup() %>%
-#       rename_at(vars(oldnames[1:2]), ~ newnames[1:2]) %>% 
-#       select(newnames[1:2]) -> part1
-#     
-#     # Ajuste NR por clases por estrato. Similar a la realidad, para ver que pasa.
-#     input_data %>%
-#       left_join(boot_fact, c("strata_boot", "UPM_boot"))%>%
-#       mutate(boot_wt = wt*adj_factor) %>%
-#       group_by(strata) %>% 
-#       mutate(tot_boot_wt = sum(boot_wt)) %>%
-#       filter(I == 1) %>%
-#       mutate(adj_nr       = tot_boot_wt/sum(boot_wt),
-#              adj2_boot_wt = adj_nr*boot_wt) %>%
-#       ungroup() %>%
-#       rename_at(vars(oldnames[3]), ~ newnames[3]) %>% 
-#       select(newnames[3]) -> part2
-#     
-#     b <- cbind(part1, part2)
-#   }
-#   
-#   # Agrega pesos ajustados por no respuesta, utilizando n_personas como clase de ajuste.
-#   boot_output1 <- input_data %>% 
-#     group_by(n_personas) %>%
-#     mutate(tot_wt = sum(wt)) %>%
-#     filter(I == 1) %>%
-#     mutate(adj_nr = tot_wt/sum(wt),
-#            adj1_wt = adj_nr*wt) %>%
-#     ungroup() %>%
-#     select(c(strata, UPM_boot, n_personas, wt, adj1_wt))
-#   
-#   # Pesos ajustados por no respuesta, utilizando "strata" como clase de ajuste.
-#   boot_output2 <- input_data %>% 
-#     group_by(strata) %>%
-#     mutate(tot_wt = sum(wt)) %>%
-#     filter(I == 1) %>%
-#     mutate(adj_nr = tot_wt/sum(wt),
-#            adj2_wt = adj_nr*wt) %>%
-#     ungroup() %>%
-#     select(adj2_wt)
-#   
-#   # Concatena dataframes.
-#   boot_output <- cbind(boot_output1, boot_output2, boot_wt)
-#   return(boot_output)
-# }
-
-
-# ## -------------------------------------------- Función para realizar calibración.
-# 
-# calibracion <- function(df_calib,   # data.frame de muestra con pesos + pesos bootstrap (ajustados y no ajustados por NR)
-#                         df_totals,  # data.frame con los totales de las variables de calibracion.
-#                         x_vars,     # vector caracter con nombre de variables de calibracion.
-#                         n_boot){    # cantidad de muestras bootstrap en df_calib
-#   
-#   calibv_df  <- as.matrix(df_calib[x_vars])
-#   pop_values <- as.vector(unlist(df_totals[x_vars]), mode = 'numeric')
-#   col_number <- which(colnames(df_calib) == "wt" )
-#   
-#   calib_wt <- foreach(i = col_number:ncol(df_calib), .combine=cbind, .packages=c('sampling','foreach')) %dopar% {
-#     
-#     initial_wt <- as.vector(unlist(df_calib[,i]), mode = 'numeric')
-#     g_weights  <- calib(Xs = calibv_df, d = initial_wt, total = pop_values, 
-#                         method = "logit", bounds = c(0.4, 3.85))
-#     
-#     initial_wt*g_weights 
-#   }
-#   calib_wt <- as.data.frame(calib_wt)
-#   
-#   # No es lo mas prolijo, pero me devuelve lo que necesito.
-#   colnames(calib_wt) <- paste0("cal_", colnames(df_calib[,col_number:ncol(df_calib)]))
-#   return(calib_wt)
-# } 
-
-

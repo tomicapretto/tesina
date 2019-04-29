@@ -1,16 +1,32 @@
+# Ultima actualizacion: 28/04/2019.
+# Autor: Tomas Capretto.
+
+#-------------------------------------------------- Descripción -------------------------------------------------- #
+# Este programa utiliza los datos de las viviendas como de las personas.                                           #
+# En este se crean las Unidades Primarias de Muestreo (un paso intermedio implica irse a Tableau).                 #
+# Realiza filtros del marco muestral de forma tal que este se asimile mas a lo utilizado en un Instituto de        #
+# Estadística. Se eliminan las áreas con menos de 50 viviendas y las UPM con menos de 10 areas.                    #
+#                                                                                                                  #
+# Por otro lado, se crean los totales marginales utilizados para la calibación.                                    #
+# También se determinan coeficientes para simular ciertas tasas de respuesta bajo MAR y NMAR.                      #
+#----------------------------------------------------------------------------------------------------------------- #
+
 # Configuracion de working directory.
 PATH1 = "C:/Users/Tomi/Google Drive/tesina"
 setwd(PATH1)
 
+# Carga de librerias
 library(data.table)
 library(dplyr)
 
-
+# Lectura de datos de hogares y personas.
 hh_data          <- fread("./datos/bases/hh_data_3.csv")
 hh_data_filtered <- hh_data[,c("sp_id", "county", "place","locality","area_number")]
 
 ppl_data <- fread("./datos/bases/ppl_data.csv")
 
+# Modificación de clases. Son importados originalmente como 'data.table' y este código utiliza métodos
+# que se corresponden con 'data.frame'.
 class(hh_data)  <- "data.frame"
 class(ppl_data) <- "data.frame"
 class(hh_data_filtered) <- "data.frame"
@@ -51,9 +67,9 @@ for (i in 1:nrow(counties)){
 }
 
 # Asignacion de numero de UPM a Condados que componen una UPM por si solos.
-counties <- counties[order(counties$UPM),]
+counties <- counties[order(counties$UPM), ]
 for(i in 1:nrow(counties)){
-  if (is.na(counties[i, "UPM"])) {counties[i,"UPM"] <- as.numeric(counties[i-1, "UPM"]+1) }
+  if (is.na(counties[i, "UPM"])) {counties[i, "UPM"] <- as.numeric(counties[i-1, "UPM"]+1) }
 }
 
 # Subset y reorden de columnas.
@@ -66,7 +82,7 @@ counties <- counties[c("UPM", "county", "ppl_count", "hh_count")]
 
 ## hh_data tiene 8922361 filas (hogares).
 hh_data_filtered <- hh_data_filtered %>%
-                      left_join(counties, by = "county")
+  left_join(counties, by = "county")
 # 1
 hh_data_filtered %>%
   group_by(locality, area_number) %>%
@@ -78,7 +94,7 @@ hh_data_filtered %>%
 hh_data_filtered %>%
   group_by(UPM, locality) %>%
   mutate(area_count = n_distinct(area_number)) %>%
-  filter(area_count >=10) %>%
+  filter(area_count >= 10) %>%
   ungroup() %>%
   select(sp_id, UPM) -> hh_data_filtered
 
@@ -93,8 +109,8 @@ fwrite(hh_data, "./datos/bases/hh_data_4.csv", sep=",", row.names = FALSE)
 ##----------------------------------------------------- Elaboracion de tablas de UPM y USM.
 
 UPM_df <- hh_data %>%
-            group_by(UPM) %>%
-            summarise(hh_count = n()) 
+  group_by(UPM) %>%
+  summarise(hh_count = n()) 
 
 # Estrato de inclusión forzosa.
 # UPM = 100, n = 1423955 -> Harris County  (Area metropolitana Houston)
@@ -113,16 +129,13 @@ UPM_df[UPM_df$hh_count <= 10000, "strata"] <- 1
 
 
 USM_df <- hh_data %>%
-            group_by(UPM, locality, area_number) %>%
-            summarise(hh_count = n())
+  group_by(UPM, locality, area_number) %>%
+  summarise(hh_count = n())
 
 fwrite(UPM_df , "./datos/bases/UPM_df.csv", sep=",", row.names = FALSE)
 fwrite(USM_df , "./datos/bases/USM_df.csv", sep=",", row.names = FALSE)
 
 ##----------------------------------------------------- Totales marginales para calibración.
-
-
-
 
 ppl_data$male <- 0
 ppl_data[ppl_data$sex == "M", "male"] <- 1
@@ -180,14 +193,14 @@ hh_data[hh_data$n_personas >=5, "n_personas"] <- 5
 
 # Totales marginales para calibracion.
 calibration_margins <- hh_data %>%
-                        summarise( 
-                          nhh_m14 = sum(nhh_m14),
-                          nhh_m29 = sum(nhh_m29),
-                          nhh_m49 = sum(nhh_m49),
-                          nhh_m64 = sum(nhh_m64),
-                          nhh_m65 = sum(nhh_m65),
-                          nhh_m   = sum(nhh_m),
-                          nhh_f   = sum(nhh_f))
+  summarise( 
+            nhh_m14 = sum(nhh_m14),
+            nhh_m29 = sum(nhh_m29),
+            nhh_m49 = sum(nhh_m49),
+            nhh_m64 = sum(nhh_m64),
+            nhh_m65 = sum(nhh_m65),
+            nhh_m   = sum(nhh_m),
+            nhh_f   = sum(nhh_f))
 
 fwrite(calibration_margins, "./datos/bases/calibration_margins.csv", sep=",", row.names = FALSE)
 
@@ -227,6 +240,7 @@ while (LS <= 2.50) {
   LS <- LS + 0.25
   POINT <- POINT + 0.25
 }
+
 hh_data[hh_data$hh_income_std >= 2.50 , "hh_income_std"] <- 2.50 
 
 # Al igual que en MAR, se necesita la frecuencia en cada valor para obtener
@@ -245,9 +259,8 @@ NMAR_list <- list("0.80" = -1.48,
                   "0.60" = -0.37)
 
 ##----------------------------------------------------- Tabla final.
-hh_data <- hh_data[c("UPM","locality", "area_number","sp_id", "hh_income","hh_income_std" ,"hh_race", "n_personas",
+hh_data <- hh_data[c("UPM", "locality", "area_number", "sp_id", "hh_income", "hh_income_std", "hh_race", "n_personas",
                      "nhh_m14", "nhh_m29", "nhh_m49", "nhh_m64", "nhh_m65", "nhh_m", "nhh_f")]
-
 
 #Dataframe definitivo a utilizar durante muestreo y estimación.
 fwrite(hh_data,"./datos/bases/hh_data_5.csv", sep=",", row.names = FALSE)

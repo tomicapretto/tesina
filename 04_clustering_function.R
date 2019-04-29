@@ -1,7 +1,7 @@
-# Ultima actualizacion: 30/1/2019.
+# Ultima actualizacion: 27/04/2019.
 # Autor: Tomas Capretto.
 
-#-------------------------------------------------- Descripción -------------------------------------------------- #
+#-------------------------------------------------- Descripcion -------------------------------------------------- #
 # Este programa crea la funcion necesaria para construir areas de muestreo de aproximadamente 200 viviendas        #
 # dentro de cada localidad del Estado de Texas.                                                                    #
 # La funcion llamada Iterative nearest neighbor es tomada de:                                                      #

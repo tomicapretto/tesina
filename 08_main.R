@@ -1,4 +1,4 @@
-if (iter <= 1000) estimate_var = TRUE else estimate_var = FALSE
+if (iter <= 1000) estimate_var = TRUE else estimate_var = FALSE  # determina si se calculan variancias o no.
 ## -------------------------------------------- 1 - Selección de muestra compleja.
 print(paste0(Sys.time(), ": Selecting sample"))
 
